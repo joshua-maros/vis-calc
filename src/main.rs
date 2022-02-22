@@ -85,9 +85,12 @@ impl From<usize> for NumArgs {
 
 type ComputeRule = fn(&[Expression]) -> Option<Expression>;
 
-macro_rules! e{
-    ($name:ident($($args:expr),*)) => {
-        Expression::Operator(stringify!($name).to_owned(), vec![$($args),*])
+macro_rules! expression{
+    (($name:ident $($args:tt)*)) => {
+        Expression::Operator(stringify!($name).to_owned(), vec![$(expression!($args)),*])
+    };
+    ($name:ident) => {
+        Expression::Variable(stringify!($name).to_owned())
     };
     ($number:literal) => {
         Expression::Number($number.into())
@@ -139,14 +142,23 @@ impl Operator {
 
     pub fn equal() -> Self {
         fn cr(args: &[Expression]) -> Option<Expression> {
-            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
-                Some(if l == r { e!(true()) } else { e!(false()) })
+            if args.len() == 0 {
+                Some(expression!((true)))
             } else {
-                None
+                let start = *args[0].as_number()?;
+                let mut result = true;
+                for other in &args[1..] {
+                    result = result && start == *other.as_number()?;
+                }
+                Some(if result {
+                    expression!((true))
+                } else {
+                    expression!((false))
+                })
             }
         }
 
-        Self::new("eq", 2.into(), Some(cr))
+        Self::new("eq", Variable, Some(cr))
     }
 
     pub fn not_equal() -> Self {
@@ -226,6 +238,7 @@ impl Operator {
     }
 }
 
+#[derive(Clone, PartialEq)]
 enum Expression {
     Number(Number),
     Operator(String, Vec<Expression>),
@@ -237,15 +250,9 @@ impl Display for Expression {
         match self {
             Self::Number(num) => write!(f, "{}", num),
             Self::Operator(name, args) => {
-                write!(f, "{}(", name)?;
-                let mut first = true;
+                write!(f, "({}", name)?;
                 for arg in args {
-                    if first {
-                        first = false
-                    } else {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", arg)?;
+                    write!(f, " {}", arg)?;
                 }
                 write!(f, ")")
             }
@@ -272,17 +279,60 @@ impl Expression {
             other => other,
         }
     }
+
+    fn as_number(&self) -> Option<&Number> {
+        if let Self::Number(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+struct RewriteRule {
+    preconditions: Vec<Expression>,
+    original: Expression,
+    rewritten: Expression,
+}
+
+impl TryFrom<Expression> for RewriteRule {
+    type Error = ();
+
+    fn try_from(mut value: Expression) -> Result<Self, ()> {
+        let mut preconditions = Vec::new();
+        while let Expression::Operator(name, args) = &value {
+            if name == "imp" {
+                preconditions.push(args[0].clone());
+                value = args[1].clone();
+            } else {
+                break;
+            }
+        }
+        if let Expression::Operator(name, mut args) = value {
+            if name == "eq" && args.len() == 2 {
+                return Ok(Self {
+                    preconditions,
+                    rewritten: args.pop().unwrap(),
+                    original: args.pop().unwrap(),
+                });
+            }
+        }
+        Err(())
+    }
 }
 
 struct Environment {
     pub operators: HashMap<String, Operator>,
+    pub rewrite_rules: Vec<RewriteRule>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         let mut this = Environment {
             operators: HashMap::new(),
+            rewrite_rules: Vec::new(),
         };
+
         this.add_operator(Operator::truee());
         this.add_operator(Operator::falsee());
         this.add_operator(Operator::and());
@@ -298,6 +348,7 @@ impl Environment {
         this.add_operator(Operator::mul());
         this.add_operator(Operator::div());
         this.add_operator(Operator::modd());
+
         this
     }
 
@@ -308,11 +359,15 @@ impl Environment {
     pub fn get_operator(&self, name: &str) -> &Operator {
         self.operators.get(name).unwrap()
     }
+
+    pub fn add_rewrite_rule(&mut self, from: Expression) {
+        self.rewrite_rules.push(from.try_into().unwrap())
+    }
 }
 
 fn main() {
     let env = Environment::new();
-    let expr = e!(add(e!(1), e!(1)));
+    let expr = expression!((eq (add a b) (add b a)));
     println!("{}", expr);
     println!("{}", expr.apply_computation(&env));
 }
