@@ -373,9 +373,7 @@ impl Display for FlatExpression {
 }
 
 impl FlatExpression {
-    fn replace(&mut self, node_index: usize, with: FlatExpression) {
-
-    }
+    fn replace(&mut self, node_index: usize, with: FlatExpression) {}
 
     #[must_use]
     fn apply_computation(self, env: &Environment) -> Self {
@@ -408,14 +406,14 @@ impl FlatExpression {
 
     fn matches_specific_case(&self, specific_case: &Self) -> MatchResult {
         // match (self, specific_case) {
-        //     (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l == r),
-        //     (Expression::Operator(lname, largs), Expression::Operator(rname, rargs)) => {
-        //         let mut result =
-        //             MatchResult::match_if(lname == rname && largs.len() == rargs.len());
-        //         for (larg, rarg) in largs.iter().zip(rargs.iter()) {
-        //             let args_match = larg.matches_specific_case(rarg);
-        //             result = MatchResult::and(result, args_match);
-        //         }
+        //     (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l
+        // == r),     (Expression::Operator(lname, largs),
+        // Expression::Operator(rname, rargs)) => {         let mut result =
+        //             MatchResult::match_if(lname == rname && largs.len() ==
+        // rargs.len());         for (larg, rarg) in
+        // largs.iter().zip(rargs.iter()) {             let args_match =
+        // larg.matches_specific_case(rarg);             result =
+        // MatchResult::and(result, args_match);         }
         //         result
         //     }
         //     (Expression::Variable(l), _) => {
@@ -427,8 +425,8 @@ impl FlatExpression {
     }
 
     fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(Substitutions, ExpressionPath)> {
-        // let result = if let MatchResult::Match(subs) = self.matches_specific_case(specific_case) {
-        //     Some((subs, vec![]))
+        // let result = if let MatchResult::Match(subs) =
+        // self.matches_specific_case(specific_case) {     Some((subs, vec![]))
         // } else {
         //     None
         // };
@@ -491,9 +489,9 @@ impl FlatExpression {
         // match self {
         //     Expression::Number(..) | Expression::Variable(..) => 1,
         //     Expression::Operator(name, args) => {
-        //         let arg_weights = args.iter().map(|arg| arg.compute_weight(env)).collect_vec();
-        //         (env.operators.get(name).unwrap().weight_rule)(&arg_weights)
-        //     }
+        //         let arg_weights = args.iter().map(|arg|
+        // arg.compute_weight(env)).collect_vec();         (env.operators.
+        // get(name).unwrap().weight_rule)(&arg_weights)     }
         // }
         todo!()
     }
@@ -527,9 +525,8 @@ impl MatchResult {
                     if rsub != &value {
                         return Self::NoMatch;
                     }
-                } else {
-                    output_subs.insert(target, value);
                 }
+                output_subs.insert(target, value);
             }
             for (target, value) in rsubs {
                 if !lsubs.contains_key(&target) {
@@ -592,6 +589,9 @@ impl Expression {
                     let args_match = larg.matches_specific_case(rarg);
                     result = MatchResult::and(result, args_match);
                 }
+                // if !result.is_no_match() {
+                //     println!("{} {}, {:?}", self, specific_case, result);
+                // }
                 result
             }
             (Expression::Variable(l), _) => {
@@ -670,6 +670,7 @@ impl Expression {
     }
 }
 
+#[derive(Clone)]
 struct RewriteRule {
     preconditions: Vec<Expression>,
     original: Expression,
@@ -761,7 +762,13 @@ impl Environment {
     }
 
     pub fn add_rewrite_rule(&mut self, from: Expression) {
-        self.rewrite_rules.push(from.try_into().unwrap())
+        let rwr: RewriteRule = from.try_into().unwrap();
+        self.rewrite_rules.push(rwr.clone());
+        self.rewrite_rules.push(RewriteRule {
+            preconditions: rwr.preconditions,
+            original: rwr.rewritten,
+            rewritten: rwr.original,
+        });
     }
 
     pub fn apply_all_applicable_rules(&self, to: &Expression) -> Vec<Expression> {
@@ -834,13 +841,18 @@ fn main() {
     env.add_rewrite_rule(expression!((eq (add (mul x a) (mul y a)) (mul (add x y) a))));
     env.add_rewrite_rule(expression!((eq x (mul 1 x))));
     env.add_rewrite_rule(expression!((eq x (add 0 x))));
+    // Foil
+    env.add_rewrite_rule(expression!((eq (mul (add a b) (add c d)) (add (add (add
+    (mul a c) (mul a d)) (mul b c)) (mul b d)))));
 
+    println!("{:#?}", env);
     println!("Algebra engine initialized!");
 
     // let to_rewrite = expression!((and(and(true)(false))(true)));
-    let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
-    println!("{}", to_rewrite.flatten(&mut env));
     // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
-    // env.simplify(to_rewrite, 5);
+    let to_rewrite = expression!((mul (add x y) (add x y)));
+    // println!("{}", to_rewrite.flatten(&mut env));
+    // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
+    env.simplify(to_rewrite, 5);
     // println!("{:?}", rewritten);
 }
