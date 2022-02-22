@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fmt::{Debug, Display, Formatter, self},
+    fmt::{self, Debug, Display, Formatter},
     ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
 };
 
@@ -294,19 +294,17 @@ impl Display for Expression {
     }
 }
 
+type Substitutions = HashMap<String, Expression>;
+
 #[derive(Clone, Debug, PartialEq)]
 enum MatchResult {
-    Match {
-        substitutions: HashMap<String, Expression>,
-    },
+    Match(Substitutions),
     NoMatch,
 }
 
 impl MatchResult {
     pub fn empty_match() -> Self {
-        Self::Match {
-            substitutions: HashMap::new(),
-        }
+        Self::Match(Substitutions::new())
     }
 
     pub fn match_if(condition: bool) -> Self {
@@ -317,16 +315,8 @@ impl MatchResult {
     }
 
     pub fn and(l: Self, r: Self) -> Self {
-        if let (
-            Self::Match {
-                substitutions: lsubs,
-            },
-            Self::Match {
-                substitutions: rsubs,
-            },
-        ) = (l, r)
-        {
-            let mut output_subs = HashMap::new();
+        if let (Self::Match(lsubs), Self::Match(rsubs)) = (l, r) {
+            let mut output_subs = Substitutions::new();
             for (target, value) in lsubs.clone() {
                 if rsubs.contains_key(&target) {
                     todo!()
@@ -339,9 +329,7 @@ impl MatchResult {
                     output_subs.insert(target, value);
                 }
             }
-            Self::Match {
-                substitutions: output_subs,
-            }
+            Self::Match(output_subs)
         } else {
             Self::NoMatch
         }
@@ -354,6 +342,10 @@ impl MatchResult {
         matches!(self, Self::NoMatch)
     }
 }
+
+/// First arguments to follow are at the end. E.G. a path of 1, 0 in the
+/// expression (a (b c d) (e f g)) gets you to "d".
+type ExpressionPath = Vec<usize>;
 
 impl Expression {
     fn apply_computation(self, env: &Environment) -> Self {
@@ -386,14 +378,69 @@ impl Expression {
         match (self, specific_case) {
             (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l == r),
             (Expression::Operator(lname, largs), Expression::Operator(rname, rargs)) => {
-                let mut result = MatchResult::match_if(lname == rname && largs.len() == rargs.len());
+                let mut result =
+                    MatchResult::match_if(lname == rname && largs.len() == rargs.len());
                 for (larg, rarg) in largs.iter().zip(rargs.iter()) {
                     result = MatchResult::and(result, larg.matches_specific_case(rarg));
                 }
                 result
-            },
+            }
             (Expression::Variable(l), Expression::Variable(r)) => MatchResult::match_if(l == r),
-            _ => MatchResult::NoMatch
+            _ => MatchResult::NoMatch,
+        }
+    }
+
+    fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(MatchResult, ExpressionPath)> {
+        let result = (self.matches_specific_case(specific_case), vec![]);
+        if let Self::Operator(_, args) = specific_case {
+            args.iter()
+                .enumerate()
+                .flat_map(|(index, arg)| {
+                    self.find_all_matches_in(arg)
+                        .into_iter()
+                        .map(move |mut result| {
+                            result.1.push(index);
+                            result
+                        })
+                })
+                .chain(std::iter::once(result))
+                .collect()
+        } else {
+            vec![result]
+        }
+    }
+
+    fn apply_substitutions(&mut self, subs: &Substitutions) {
+        match self {
+            Expression::Operator(_, args) => {
+                for arg in args {
+                    arg.apply_substitutions(subs);
+                }
+            }
+            Expression::Variable(name) => {
+                if let Some(replacement) = subs.get(name) {
+                    *self = replacement.clone()
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn apply_rewrite_rule(&mut self, rule: &RewriteRule, mut path: ExpressionPath) {
+        if let Some(index) = path.pop() {
+            if let Self::Operator(_, args) = self {
+                args[index].apply_rewrite_rule(rule, path)
+            } else {
+                unreachable!()
+            }
+        } else {
+            let matchh = rule.original.matches_specific_case(self);
+            if let MatchResult::Match(subs) = matchh {
+                *self = rule.rewritten.clone();
+                self.apply_substitutions(&subs);
+            } else {
+                unreachable!()
+            }
         }
     }
 }
@@ -495,11 +542,11 @@ impl Environment {
 
 macro_rules! truth_table {
     ($env:expr, $operator:ident $tt:ident $tf:ident $ft:ident $ff:ident) => {
-        $env.add_rewrite_rule(expression!((eq ($operator (true) (true)) ($tt))));
-        $env.add_rewrite_rule(expression!((eq ($operator (true) (false)) ($tf))));
-        $env.add_rewrite_rule(expression!((eq ($operator (false) (true)) ($ft))));
-        $env.add_rewrite_rule(expression!((eq ($operator (false) (false)) ($ff))));
-    }
+        $env.add_rewrite_rule(expression!((eq($operator(true)(true))($tt))));
+        $env.add_rewrite_rule(expression!((eq($operator(true)(false))($tf))));
+        $env.add_rewrite_rule(expression!((eq($operator(false)(true))($ft))));
+        $env.add_rewrite_rule(expression!((eq($operator(false)(false))($ff))));
+    };
 }
 
 fn main() {
@@ -508,10 +555,15 @@ fn main() {
     truth_table!(env, or true true true false);
     truth_table!(env, imp true false true true);
     truth_table!(env, bicond true false false true);
-    env.add_rewrite_rule(expression!((eq (not (true)) (false))));
-    env.add_rewrite_rule(expression!((eq (not (false)) (true))));
+    env.add_rewrite_rule(expression!((eq(not(true))(false))));
+    env.add_rewrite_rule(expression!((eq(not(false))(true))));
     env.add_rewrite_rule(expression!((eq (add a b) (add b a))));
     env.add_rewrite_rule(expression!((eq (sub 0 a) (neg a))));
     env.add_rewrite_rule(expression!((eq (add (add a b) c) (add a (add b c)))));
     println!("{:#?}", env);
+
+    let mut to_rewrite = expression!((and (true) (true)));
+    println!("{}", to_rewrite);
+    to_rewrite.apply_rewrite_rule(&env.rewrite_rules[0], vec![]);
+    println!("{}", to_rewrite);
 }
