@@ -1,29 +1,55 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
+    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
 };
 
 use derive_more::*;
 
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    PartialOrd,
-    Neg,
-    Add,
-    AddAssign,
-    Sub,
-    SubAssign,
-    Mul,
-    MulAssign,
-    Div,
-    DivAssign,
-    Rem,
-    RemAssign,
-    Sum,
-)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Neg, Add, AddAssign, Sub, SubAssign, Sum)]
 struct Number(f64);
+
+impl Mul for Number {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl MulAssign for Number {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.0 *= rhs.0
+    }
+}
+
+impl Div for Number {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self {
+        Self(self.0 / rhs.0)
+    }
+}
+
+impl DivAssign for Number {
+    fn div_assign(&mut self, rhs: Self) {
+        self.0 /= rhs.0
+    }
+}
+
+impl Rem for Number {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self {
+        Self(self.0 % rhs.0)
+    }
+}
+
+impl RemAssign for Number {
+    fn rem_assign(&mut self, rhs: Self) {
+        self.0 %= rhs.0
+    }
+}
 
 impl Display for Number {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -122,6 +148,82 @@ impl Operator {
 
         Self::new("eq", 2.into(), Some(cr))
     }
+
+    pub fn not_equal() -> Self {
+        Self::new("neq", 2.into(), None)
+    }
+
+    pub fn add() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
+                Some(Expression::Number(*l + *r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("add", 2.into(), Some(cr))
+    }
+
+    pub fn sub() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
+                Some(Expression::Number(*l - *r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("sub", 2.into(), Some(cr))
+    }
+
+    pub fn neg() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let &Expression::Number(r) = &args[0] {
+                Some(Expression::Number(-r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("neg", 1.into(), Some(cr))
+    }
+
+    pub fn mul() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
+                Some(Expression::Number(*l * *r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("mul", 2.into(), Some(cr))
+    }
+
+    pub fn div() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
+                Some(Expression::Number(*l / *r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("div", 2.into(), Some(cr))
+    }
+
+    pub fn modd() -> Self {
+        fn cr(args: &[Expression]) -> Option<Expression> {
+            if let (Expression::Number(l), Expression::Number(r)) = (&args[0], &args[1]) {
+                Some(Expression::Number(*l % *r))
+            } else {
+                None
+            }
+        }
+
+        Self::new("mod", 2.into(), Some(cr))
+    }
 }
 
 enum Expression {
@@ -189,6 +291,13 @@ impl Environment {
         this.add_operator(Operator::implies());
         this.add_operator(Operator::biconditional());
         this.add_operator(Operator::equal());
+        this.add_operator(Operator::not_equal());
+        this.add_operator(Operator::add());
+        this.add_operator(Operator::sub());
+        this.add_operator(Operator::neg());
+        this.add_operator(Operator::mul());
+        this.add_operator(Operator::div());
+        this.add_operator(Operator::modd());
         this
     }
 
@@ -203,7 +312,7 @@ impl Environment {
 
 fn main() {
     let env = Environment::new();
-    let expr = e!(eq(e!(1), e!(1)));
+    let expr = e!(add(e!(1), e!(1)));
     println!("{}", expr);
     println!("{}", expr.apply_computation(&env));
 }
