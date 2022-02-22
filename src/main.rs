@@ -1,12 +1,13 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
+    hash::{Hash, Hasher},
     ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
 };
 
 use derive_more::*;
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Neg, Add, AddAssign, Sub, SubAssign, Sum)]
+#[derive(Clone, Copy, PartialOrd, Neg, Add, AddAssign, Sub, SubAssign, Sum)]
 struct Number(f64);
 
 impl Mul for Number {
@@ -69,6 +70,20 @@ impl From<i32> for Number {
     }
 }
 
+impl PartialEq for Number {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_le_bytes() == other.0.to_le_bytes()
+    }
+}
+
+impl Eq for Number {}
+
+impl Hash for Number {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.0.to_le_bytes());
+    }
+}
+
 #[derive(Debug)]
 enum NumArgs {
     Variable,
@@ -76,6 +91,7 @@ enum NumArgs {
 }
 
 use itertools::Itertools;
+use maplit::hashmap;
 use NumArgs::Variable;
 
 impl From<usize> for NumArgs {
@@ -265,7 +281,7 @@ impl Operator {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum Expression {
     Number(Number),
     Operator(String, Vec<Expression>),
@@ -385,13 +401,22 @@ impl Expression {
                 }
                 result
             }
-            (Expression::Variable(l), Expression::Variable(r)) => MatchResult::match_if(l == r),
+            (Expression::Variable(l), Expression::Variable(r)) if l == r => {
+                MatchResult::empty_match()
+            }
+            (Expression::Variable(l), _) => {
+                MatchResult::Match(hashmap![l.clone() => specific_case.clone()])
+            }
             _ => MatchResult::NoMatch,
         }
     }
 
-    fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(MatchResult, ExpressionPath)> {
-        let result = (self.matches_specific_case(specific_case), vec![]);
+    fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(Substitutions, ExpressionPath)> {
+        let result = if let MatchResult::Match(subs) = self.matches_specific_case(specific_case) {
+            Some((subs, vec![]))
+        } else {
+            None
+        };
         if let Self::Operator(_, args) = specific_case {
             args.iter()
                 .enumerate()
@@ -403,10 +428,10 @@ impl Expression {
                             result
                         })
                 })
-                .chain(std::iter::once(result))
+                .chain(result.into_iter())
                 .collect()
         } else {
-            vec![result]
+            result.into_iter().collect()
         }
     }
 
@@ -538,6 +563,18 @@ impl Environment {
     pub fn add_rewrite_rule(&mut self, from: Expression) {
         self.rewrite_rules.push(from.try_into().unwrap())
     }
+
+    pub fn apply_all_applicable_rules(&self, to: &Expression) -> Vec<Expression> {
+        let mut result = HashSet::new();
+        for rule in &self.rewrite_rules {
+            for (match_subs, match_path) in rule.original.find_all_matches_in(to) {
+                let mut modified = to.clone();
+                modified.apply_rewrite_rule(rule, match_path);
+                result.insert(modified);
+            }
+        }
+        result.into_iter().collect_vec()
+    }
 }
 
 macro_rules! truth_table {
@@ -562,8 +599,7 @@ fn main() {
     env.add_rewrite_rule(expression!((eq (add (add a b) c) (add a (add b c)))));
     println!("{:#?}", env);
 
-    let mut to_rewrite = expression!((and (true) (true)));
-    println!("{}", to_rewrite);
-    to_rewrite.apply_rewrite_rule(&env.rewrite_rules[0], vec![]);
-    println!("{}", to_rewrite);
+    let to_rewrite = expression!((and(and(true)(true))(true)));
+    let to_rewrite = expression!((add 1 2));
+    println!("{:?}", env.apply_all_applicable_rules(&to_rewrite));
 }
