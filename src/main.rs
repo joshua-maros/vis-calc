@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
+    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign}, time::Instant,
 };
 
 use derive_more::*;
@@ -334,8 +334,10 @@ impl MatchResult {
         if let (Self::Match(lsubs), Self::Match(rsubs)) = (l, r) {
             let mut output_subs = Substitutions::new();
             for (target, value) in lsubs.clone() {
-                if rsubs.contains_key(&target) {
-                    todo!()
+                if let Some(rsub) = rsubs.get(&target) {
+                    if rsub != &value {
+                        return Self::NoMatch;
+                    }
                 } else {
                     output_subs.insert(target, value);
                 }
@@ -364,6 +366,7 @@ impl MatchResult {
 type ExpressionPath = Vec<usize>;
 
 impl Expression {
+    #[must_use]
     fn apply_computation(self, env: &Environment) -> Self {
         match self {
             Self::Operator(name, args) => {
@@ -397,12 +400,10 @@ impl Expression {
                 let mut result =
                     MatchResult::match_if(lname == rname && largs.len() == rargs.len());
                 for (larg, rarg) in largs.iter().zip(rargs.iter()) {
-                    result = MatchResult::and(result, larg.matches_specific_case(rarg));
+                    let args_match = larg.matches_specific_case(rarg);
+                    result = MatchResult::and(result, args_match);
                 }
                 result
-            }
-            (Expression::Variable(l), Expression::Variable(r)) if l == r => {
-                MatchResult::empty_match()
             }
             (Expression::Variable(l), _) => {
                 MatchResult::Match(hashmap![l.clone() => specific_case.clone()])
@@ -465,6 +466,16 @@ impl Expression {
                 self.apply_substitutions(&subs);
             } else {
                 unreachable!()
+            }
+        }
+    }
+
+    fn compute_weight(&self, env: &Environment) -> usize {
+        match self {
+            Expression::Number(..) | Expression::Variable(..) => 1,
+            Expression::Operator(name, args) => {
+                let arg_weights = args.iter().map(|arg| arg.compute_weight(env)).collect_vec();
+                (env.operators.get(name).unwrap().weight_rule)(&arg_weights)
             }
         }
     }
@@ -567,13 +578,45 @@ impl Environment {
     pub fn apply_all_applicable_rules(&self, to: &Expression) -> Vec<Expression> {
         let mut result = HashSet::new();
         for rule in &self.rewrite_rules {
-            for (match_subs, match_path) in rule.original.find_all_matches_in(to) {
+            for (_, match_path) in rule.original.find_all_matches_in(to) {
                 let mut modified = to.clone();
                 modified.apply_rewrite_rule(rule, match_path);
                 result.insert(modified);
             }
         }
         result.into_iter().collect_vec()
+    }
+
+    pub fn simplify_limited(&self, src: Expression, limit: usize) -> Expression {
+        let src = src.apply_computation(self);
+        let mut best = src.clone();
+        if limit > 0 {
+            for alternate_form in self.apply_all_applicable_rules(&src) {
+                let simplified = self.simplify_limited(alternate_form, limit - 1);
+                if simplified.compute_weight(self) < best.compute_weight(self) {
+                    best = simplified;
+                }
+            }
+        }
+        best
+    }
+
+    pub fn simplify(&self, src: Expression, strength: usize) -> Expression {
+        let mut result = src;
+        'outer: loop {
+            let start = Instant::now();
+            for limit in 0..strength {
+                let old_weight = result.compute_weight(self);
+                result = self.simplify_limited(result, limit);
+                if result.compute_weight(self) < old_weight {
+                    // println!("{} {}", (Instant::now() - start).as_micros(), result);
+                    // Restart the limit to start searching for low-hanging fruit after we succeeded
+                    // in simplifying it.
+                    continue 'outer;
+                }
+            }
+            return result;
+        }
     }
 }
 
@@ -595,11 +638,18 @@ fn main() {
     env.add_rewrite_rule(expression!((eq(not(true))(false))));
     env.add_rewrite_rule(expression!((eq(not(false))(true))));
     env.add_rewrite_rule(expression!((eq (add a b) (add b a))));
+    env.add_rewrite_rule(expression!((eq (mul a b) (mul b a))));
     env.add_rewrite_rule(expression!((eq (sub 0 a) (neg a))));
     env.add_rewrite_rule(expression!((eq (add (add a b) c) (add a (add b c)))));
-    println!("{:#?}", env);
+    env.add_rewrite_rule(expression!((eq (add (mul x a) (mul y a)) (mul (add x y) a))));
+    env.add_rewrite_rule(expression!((eq x (mul 1 x))));
+    
+    println!("Algebra engine initialized!");
 
-    let to_rewrite = expression!((and(and(true)(true))(true)));
-    let to_rewrite = expression!((add 1 2));
-    println!("{:?}", env.apply_all_applicable_rules(&to_rewrite));
+    // let to_rewrite = expression!((and(and(true)(false))(true)));
+    for _ in 0..10 {
+        let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
+        let rewritten = env.simplify(to_rewrite, 5);
+        // println!("{:?}", rewritten);
+    }
 }
