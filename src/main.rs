@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fmt::{Debug, Display},
+    fmt::{Debug, Display, Formatter, self},
     ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
 };
 
@@ -52,7 +52,7 @@ impl RemAssign for Number {
 }
 
 impl Display for Number {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -69,6 +69,7 @@ impl From<i32> for Number {
     }
 }
 
+#[derive(Debug)]
 enum NumArgs {
     Variable,
     Fixed(usize),
@@ -84,6 +85,7 @@ impl From<usize> for NumArgs {
 }
 
 type ComputeRule = fn(&[Expression]) -> Option<Expression>;
+type WeightRule = fn(&[usize]) -> usize;
 
 macro_rules! expression{
     (($name:ident $($args:tt)*)) => {
@@ -101,43 +103,68 @@ struct Operator {
     name: String,
     num_args: NumArgs,
     compute_rule: Option<ComputeRule>,
+    weight_rule: WeightRule,
+}
+
+impl Debug for Operator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Operator")
+            .field("name", &self.name)
+            .field("num_args", &self.num_args)
+            .field("compute_rule", &self.compute_rule.is_some())
+            .finish()
+    }
+}
+
+fn basic_wr(operand_weights: &[usize]) -> usize {
+    operand_weights.iter().copied().sum::<usize>() + 1
 }
 
 impl Operator {
-    pub fn new(name: &str, num_args: NumArgs, compute_rule: Option<ComputeRule>) -> Self {
+    fn new_basic(name: &str, num_args: NumArgs, compute_rule: Option<ComputeRule>) -> Self {
+        Self::new(name, num_args, compute_rule, basic_wr)
+    }
+
+    fn new(
+        name: &str,
+        num_args: NumArgs,
+        compute_rule: Option<ComputeRule>,
+        weight_rule: WeightRule,
+    ) -> Self {
         Self {
             name: name.to_owned(),
             num_args,
             compute_rule,
+            weight_rule,
         }
     }
 
     pub fn truee() -> Self {
-        Self::new("true", 0.into(), None)
+        Self::new_basic("true", 0.into(), None)
     }
 
     pub fn falsee() -> Self {
-        Self::new("false", 0.into(), None)
+        Self::new_basic("false", 0.into(), None)
     }
 
     pub fn and() -> Self {
-        Self::new("and", 2.into(), None)
+        Self::new_basic("and", 2.into(), None)
     }
 
     pub fn or() -> Self {
-        Self::new("or", 2.into(), None)
+        Self::new_basic("or", 2.into(), None)
     }
 
     pub fn not() -> Self {
-        Self::new("not", 1.into(), None)
+        Self::new_basic("not", 1.into(), None)
     }
 
     pub fn implies() -> Self {
-        Self::new("imp", 2.into(), None)
+        Self::new_basic("imp", 2.into(), None)
     }
 
     pub fn biconditional() -> Self {
-        Self::new("bicond", 2.into(), None)
+        Self::new_basic("bicond", 2.into(), None)
     }
 
     pub fn equal() -> Self {
@@ -158,11 +185,11 @@ impl Operator {
             }
         }
 
-        Self::new("eq", Variable, Some(cr))
+        Self::new_basic("eq", Variable, Some(cr))
     }
 
     pub fn not_equal() -> Self {
-        Self::new("neq", 2.into(), None)
+        Self::new_basic("neq", 2.into(), None)
     }
 
     pub fn add() -> Self {
@@ -174,7 +201,7 @@ impl Operator {
             }
         }
 
-        Self::new("add", 2.into(), Some(cr))
+        Self::new_basic("add", 2.into(), Some(cr))
     }
 
     pub fn sub() -> Self {
@@ -186,7 +213,7 @@ impl Operator {
             }
         }
 
-        Self::new("sub", 2.into(), Some(cr))
+        Self::new_basic("sub", 2.into(), Some(cr))
     }
 
     pub fn neg() -> Self {
@@ -198,7 +225,7 @@ impl Operator {
             }
         }
 
-        Self::new("neg", 1.into(), Some(cr))
+        Self::new_basic("neg", 1.into(), Some(cr))
     }
 
     pub fn mul() -> Self {
@@ -210,7 +237,7 @@ impl Operator {
             }
         }
 
-        Self::new("mul", 2.into(), Some(cr))
+        Self::new_basic("mul", 2.into(), Some(cr))
     }
 
     pub fn div() -> Self {
@@ -222,7 +249,7 @@ impl Operator {
             }
         }
 
-        Self::new("div", 2.into(), Some(cr))
+        Self::new_basic("div", 2.into(), Some(cr))
     }
 
     pub fn modd() -> Self {
@@ -234,7 +261,7 @@ impl Operator {
             }
         }
 
-        Self::new("mod", 2.into(), Some(cr))
+        Self::new_basic("mod", 2.into(), Some(cr))
     }
 }
 
@@ -245,8 +272,14 @@ enum Expression {
     Variable(String),
 }
 
+impl Debug for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        <Self as Display>::fmt(&self, f)
+    }
+}
+
 impl Display for Expression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Number(num) => write!(f, "{}", num),
             Self::Operator(name, args) => {
@@ -258,6 +291,67 @@ impl Display for Expression {
             }
             Self::Variable(name) => write!(f, "{}", name),
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MatchResult {
+    Match {
+        substitutions: HashMap<String, Expression>,
+    },
+    NoMatch,
+}
+
+impl MatchResult {
+    pub fn empty_match() -> Self {
+        Self::Match {
+            substitutions: HashMap::new(),
+        }
+    }
+
+    pub fn match_if(condition: bool) -> Self {
+        match condition {
+            true => Self::empty_match(),
+            false => Self::NoMatch,
+        }
+    }
+
+    pub fn and(l: Self, r: Self) -> Self {
+        if let (
+            Self::Match {
+                substitutions: lsubs,
+            },
+            Self::Match {
+                substitutions: rsubs,
+            },
+        ) = (l, r)
+        {
+            let mut output_subs = HashMap::new();
+            for (target, value) in lsubs.clone() {
+                if rsubs.contains_key(&target) {
+                    todo!()
+                } else {
+                    output_subs.insert(target, value);
+                }
+            }
+            for (target, value) in rsubs {
+                if !lsubs.contains_key(&target) {
+                    output_subs.insert(target, value);
+                }
+            }
+            Self::Match {
+                substitutions: output_subs,
+            }
+        } else {
+            Self::NoMatch
+        }
+    }
+
+    /// Returns `true` if the match result is [`NoMatch`].
+    ///
+    /// [`NoMatch`]: MatchResult::NoMatch
+    fn is_no_match(&self) -> bool {
+        matches!(self, Self::NoMatch)
     }
 }
 
@@ -287,12 +381,45 @@ impl Expression {
             None
         }
     }
+
+    fn matches_specific_case(&self, specific_case: &Self) -> MatchResult {
+        match (self, specific_case) {
+            (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l == r),
+            (Expression::Operator(lname, largs), Expression::Operator(rname, rargs)) => {
+                let mut result = MatchResult::match_if(lname == rname && largs.len() == rargs.len());
+                for (larg, rarg) in largs.iter().zip(rargs.iter()) {
+                    result = MatchResult::and(result, larg.matches_specific_case(rarg));
+                }
+                result
+            },
+            (Expression::Variable(l), Expression::Variable(r)) => MatchResult::match_if(l == r),
+            _ => MatchResult::NoMatch
+        }
+    }
 }
 
 struct RewriteRule {
     preconditions: Vec<Expression>,
     original: Expression,
     rewritten: Expression,
+}
+
+impl Debug for RewriteRule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut first = true;
+        for pre in &self.preconditions {
+            if first {
+                first = false
+            } else {
+                write!(f, " ^ ")?;
+            }
+            write!(f, "{}", pre)?;
+        }
+        if self.preconditions.len() > 0 {
+            write!(f, " -> ")?;
+        }
+        write!(f, "{} = {}", self.original, self.rewritten)
+    }
 }
 
 impl TryFrom<Expression> for RewriteRule {
@@ -321,6 +448,7 @@ impl TryFrom<Expression> for RewriteRule {
     }
 }
 
+#[derive(Debug)]
 struct Environment {
     pub operators: HashMap<String, Operator>,
     pub rewrite_rules: Vec<RewriteRule>,
@@ -365,9 +493,25 @@ impl Environment {
     }
 }
 
+macro_rules! truth_table {
+    ($env:expr, $operator:ident $tt:ident $tf:ident $ft:ident $ff:ident) => {
+        $env.add_rewrite_rule(expression!((eq ($operator (true) (true)) ($tt))));
+        $env.add_rewrite_rule(expression!((eq ($operator (true) (false)) ($tf))));
+        $env.add_rewrite_rule(expression!((eq ($operator (false) (true)) ($ft))));
+        $env.add_rewrite_rule(expression!((eq ($operator (false) (false)) ($ff))));
+    }
+}
+
 fn main() {
-    let env = Environment::new();
-    let expr = expression!((eq (add a b) (add b a)));
-    println!("{}", expr);
-    println!("{}", expr.apply_computation(&env));
+    let mut env = Environment::new();
+    truth_table!(env, and true false false false);
+    truth_table!(env, or true true true false);
+    truth_table!(env, imp true false true true);
+    truth_table!(env, bicond true false false true);
+    env.add_rewrite_rule(expression!((eq (not (true)) (false))));
+    env.add_rewrite_rule(expression!((eq (not (false)) (true))));
+    env.add_rewrite_rule(expression!((eq (add a b) (add b a))));
+    env.add_rewrite_rule(expression!((eq (sub 0 a) (neg a))));
+    env.add_rewrite_rule(expression!((eq (add (add a b) c) (add a (add b c)))));
+    println!("{:#?}", env);
 }
