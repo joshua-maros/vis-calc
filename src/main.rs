@@ -2,7 +2,8 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign}, time::Instant,
+    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
+    time::Instant,
 };
 
 use derive_more::*;
@@ -452,21 +453,21 @@ impl Expression {
         }
     }
 
-    fn apply_rewrite_rule(&mut self, rule: &RewriteRule, mut path: ExpressionPath) {
+    fn apply_rewrite_rule(
+        &mut self,
+        rule: &RewriteRule,
+        subs: &Substitutions,
+        mut path: ExpressionPath,
+    ) {
         if let Some(index) = path.pop() {
             if let Self::Operator(_, args) = self {
-                args[index].apply_rewrite_rule(rule, path)
+                args[index].apply_rewrite_rule(rule, subs, path)
             } else {
                 unreachable!()
             }
         } else {
-            let matchh = rule.original.matches_specific_case(self);
-            if let MatchResult::Match(subs) = matchh {
-                *self = rule.rewritten.clone();
-                self.apply_substitutions(&subs);
-            } else {
-                unreachable!()
-            }
+            *self = rule.rewritten.clone();
+            self.apply_substitutions(&subs);
         }
     }
 
@@ -578,9 +579,9 @@ impl Environment {
     pub fn apply_all_applicable_rules(&self, to: &Expression) -> Vec<Expression> {
         let mut result = HashSet::new();
         for rule in &self.rewrite_rules {
-            for (_, match_path) in rule.original.find_all_matches_in(to) {
+            for (subs, match_path) in rule.original.find_all_matches_in(to) {
                 let mut modified = to.clone();
-                modified.apply_rewrite_rule(rule, match_path);
+                modified.apply_rewrite_rule(rule, &subs, match_path);
                 result.insert(modified);
             }
         }
@@ -609,7 +610,7 @@ impl Environment {
                 let old_weight = result.compute_weight(self);
                 result = self.simplify_limited(result, limit);
                 if result.compute_weight(self) < old_weight {
-                    // println!("{} {}", (Instant::now() - start).as_micros(), result);
+                    println!("{} {}", (Instant::now() - start).as_micros(), result);
                     // Restart the limit to start searching for low-hanging fruit after we succeeded
                     // in simplifying it.
                     continue 'outer;
@@ -641,14 +642,17 @@ fn main() {
     env.add_rewrite_rule(expression!((eq (mul a b) (mul b a))));
     env.add_rewrite_rule(expression!((eq (sub 0 a) (neg a))));
     env.add_rewrite_rule(expression!((eq (add (add a b) c) (add a (add b c)))));
+    env.add_rewrite_rule(expression!((eq (mul (mul a b) c) (mul a (mul b c)))));
     env.add_rewrite_rule(expression!((eq (add (mul x a) (mul y a)) (mul (add x y) a))));
     env.add_rewrite_rule(expression!((eq x (mul 1 x))));
-    
+    env.add_rewrite_rule(expression!((eq x (add 0 x))));
+
     println!("Algebra engine initialized!");
 
     // let to_rewrite = expression!((and(and(true)(false))(true)));
-    for _ in 0..10 {
+    for _ in 0..1 {
         let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
+        // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
         let rewritten = env.simplify(to_rewrite, 5);
         // println!("{:?}", rewritten);
     }
