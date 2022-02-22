@@ -297,6 +297,208 @@ impl Display for Expression {
     }
 }
 
+impl Expression {
+    pub fn flatten(&self, env: &mut Environment) -> FlatExpression {
+        let mut result = FlatExpression {
+            arg_references: Vec::new(),
+            components: Vec::new(),
+        };
+        self.flatten_into(&mut result, env);
+        result
+    }
+
+    fn flatten_into(&self, into: &mut FlatExpression, env: &mut Environment) -> usize {
+        let index = into.components.len();
+        match self {
+            Expression::Number(num) => into.components.push(FeComponent::Number(*num)),
+            Expression::Variable(var) => into.components.push(FeComponent::Variable(var.clone())),
+            Expression::Operator(name, args) => {
+                let name = name.clone();
+                let arg_start_index = into.arg_references.len();
+                let num_args = args.len();
+                for _ in 0..num_args {
+                    into.arg_references.push(0);
+                }
+                into.components.push(FeComponent::Operator {
+                    name,
+                    arg_start_index,
+                    num_args,
+                });
+                for index in 0..num_args {
+                    into.arg_references[arg_start_index + index] =
+                        args[index].flatten_into(into, env);
+                }
+            }
+        }
+        index
+    }
+}
+
+enum FeComponent {
+    Number(Number),
+    Operator {
+        name: String,
+        arg_start_index: usize,
+        num_args: usize,
+    },
+    Variable(String),
+}
+
+struct FlatExpression {
+    arg_references: Vec<usize>,
+    components: Vec<FeComponent>,
+}
+
+impl Display for FlatExpression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut paren_stack = Vec::new();
+        for c in &self.components {
+            paren_stack.last_mut().map(|l| *l -= 1);
+            match c {
+                FeComponent::Number(num) => write!(f, "{}", num)?,
+                FeComponent::Operator { name, num_args, .. } => {
+                    write!(f, "({}", name)?;
+                    paren_stack.push(*num_args);
+                }
+                FeComponent::Variable(var) => write!(f, "{}", var)?,
+            }
+            while let Some(0) = paren_stack.last() {
+                paren_stack.pop();
+                write!(f, ")")?;
+            }
+            write!(f, " ")?;
+        }
+        Ok(())
+    }
+}
+
+impl FlatExpression {
+    fn replace(&mut self, node_index: usize, with: FlatExpression) {
+
+    }
+
+    #[must_use]
+    fn apply_computation(self, env: &Environment) -> Self {
+        // match self {
+        //     Self::Operator(name, args) => {
+        //         let args = args
+        //             .into_iter()
+        //             .map(|arg| arg.apply_computation(env))
+        //             .collect_vec();
+        //         if let Some(cr) = env.get_operator(&name).compute_rule {
+        //             if let Some(computed) = cr(&args) {
+        //                 return computed;
+        //             }
+        //         }
+        //         Self::Operator(name, args)
+        //     }
+        //     other => other,
+        // }
+        todo!()
+    }
+
+    fn as_number(&self) -> Option<&Number> {
+        // if let Self::Number(v) = self {
+        //     Some(v)
+        // } else {
+        //     None
+        // }
+        todo!()
+    }
+
+    fn matches_specific_case(&self, specific_case: &Self) -> MatchResult {
+        // match (self, specific_case) {
+        //     (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l == r),
+        //     (Expression::Operator(lname, largs), Expression::Operator(rname, rargs)) => {
+        //         let mut result =
+        //             MatchResult::match_if(lname == rname && largs.len() == rargs.len());
+        //         for (larg, rarg) in largs.iter().zip(rargs.iter()) {
+        //             let args_match = larg.matches_specific_case(rarg);
+        //             result = MatchResult::and(result, args_match);
+        //         }
+        //         result
+        //     }
+        //     (Expression::Variable(l), _) => {
+        //         MatchResult::Match(hashmap![l.clone() => specific_case.clone()])
+        //     }
+        //     _ => MatchResult::NoMatch,
+        // }
+        todo!()
+    }
+
+    fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(Substitutions, ExpressionPath)> {
+        // let result = if let MatchResult::Match(subs) = self.matches_specific_case(specific_case) {
+        //     Some((subs, vec![]))
+        // } else {
+        //     None
+        // };
+        // if let Self::Operator(_, args) = specific_case {
+        //     args.iter()
+        //         .enumerate()
+        //         .flat_map(|(index, arg)| {
+        //             self.find_all_matches_in(arg)
+        //                 .into_iter()
+        //                 .map(move |mut result| {
+        //                     result.1.push(index);
+        //                     result
+        //                 })
+        //         })
+        //         .chain(result.into_iter())
+        //         .collect()
+        // } else {
+        //     result.into_iter().collect()
+        // }
+        todo!()
+    }
+
+    fn apply_substitutions(&mut self, subs: &Substitutions) {
+        // match self {
+        //     Expression::Operator(_, args) => {
+        //         for arg in args {
+        //             arg.apply_substitutions(subs);
+        //         }
+        //     }
+        //     Expression::Variable(name) => {
+        //         if let Some(replacement) = subs.get(name) {
+        //             *self = replacement.clone()
+        //         }
+        //     }
+        //     _ => (),
+        // }
+        todo!()
+    }
+
+    fn apply_rewrite_rule(
+        &mut self,
+        rule: &RewriteRule,
+        subs: &Substitutions,
+        mut path: ExpressionPath,
+    ) {
+        // if let Some(index) = path.pop() {
+        //     if let Self::Operator(_, args) = self {
+        //         args[index].apply_rewrite_rule(rule, subs, path)
+        //     } else {
+        //         unreachable!()
+        //     }
+        // } else {
+        //     *self = rule.rewritten.clone();
+        //     self.apply_substitutions(&subs);
+        // }
+        todo!()
+    }
+
+    fn compute_weight(&self, env: &Environment) -> usize {
+        // match self {
+        //     Expression::Number(..) | Expression::Variable(..) => 1,
+        //     Expression::Operator(name, args) => {
+        //         let arg_weights = args.iter().map(|arg| arg.compute_weight(env)).collect_vec();
+        //         (env.operators.get(name).unwrap().weight_rule)(&arg_weights)
+        //     }
+        // }
+        todo!()
+    }
+}
+
 type Substitutions = HashMap<String, Expression>;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -636,10 +838,9 @@ fn main() {
     println!("Algebra engine initialized!");
 
     // let to_rewrite = expression!((and(and(true)(false))(true)));
-    for _ in 0..1 {
-        let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
-        // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
-        let rewritten = env.simplify(to_rewrite, 5);
-        // println!("{:?}", rewritten);
-    }
+    let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
+    println!("{}", to_rewrite.flatten(&mut env));
+    // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
+    // env.simplify(to_rewrite, 5);
+    // println!("{:?}", rewritten);
 }
