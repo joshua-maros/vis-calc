@@ -7,6 +7,8 @@ use std::{
 };
 
 use derive_more::*;
+use itertools::Itertools;
+use maplit::hashmap;
 
 #[derive(Clone, Copy, PartialOrd, Neg, Add, AddAssign, Sub, SubAssign, Sum)]
 struct Number(f64);
@@ -85,22 +87,6 @@ impl Hash for Number {
     }
 }
 
-#[derive(Debug)]
-enum NumArgs {
-    Variable,
-    Fixed(usize),
-}
-
-use itertools::Itertools;
-use maplit::hashmap;
-use NumArgs::Variable;
-
-impl From<usize> for NumArgs {
-    fn from(v: usize) -> Self {
-        Self::Fixed(v)
-    }
-}
-
 type ComputeRule = fn(&[Expression]) -> Option<Expression>;
 type WeightRule = fn(&[usize]) -> usize;
 
@@ -118,7 +104,7 @@ macro_rules! expression{
 
 struct Operator {
     name: String,
-    num_args: NumArgs,
+    num_args: usize,
     compute_rule: Option<ComputeRule>,
     weight_rule: WeightRule,
 }
@@ -138,13 +124,13 @@ fn basic_wr(operand_weights: &[usize]) -> usize {
 }
 
 impl Operator {
-    fn new_basic(name: &str, num_args: NumArgs, compute_rule: Option<ComputeRule>) -> Self {
+    fn new_basic(name: &str, num_args: usize, compute_rule: Option<ComputeRule>) -> Self {
         Self::new(name, num_args, compute_rule, basic_wr)
     }
 
     fn new(
         name: &str,
-        num_args: NumArgs,
+        num_args: usize,
         compute_rule: Option<ComputeRule>,
         weight_rule: WeightRule,
     ) -> Self {
@@ -157,31 +143,31 @@ impl Operator {
     }
 
     pub fn truee() -> Self {
-        Self::new_basic("true", 0.into(), None)
+        Self::new_basic("true", 0, None)
     }
 
     pub fn falsee() -> Self {
-        Self::new_basic("false", 0.into(), None)
+        Self::new_basic("false", 0, None)
     }
 
     pub fn and() -> Self {
-        Self::new_basic("and", 2.into(), None)
+        Self::new_basic("and", 2, None)
     }
 
     pub fn or() -> Self {
-        Self::new_basic("or", 2.into(), None)
+        Self::new_basic("or", 2, None)
     }
 
     pub fn not() -> Self {
-        Self::new_basic("not", 1.into(), None)
+        Self::new_basic("not", 1, None)
     }
 
     pub fn implies() -> Self {
-        Self::new_basic("imp", 2.into(), None)
+        Self::new_basic("imp", 2, None)
     }
 
     pub fn biconditional() -> Self {
-        Self::new_basic("bicond", 2.into(), None)
+        Self::new_basic("bicond", 2, None)
     }
 
     pub fn equal() -> Self {
@@ -202,11 +188,11 @@ impl Operator {
             }
         }
 
-        Self::new_basic("eq", Variable, Some(cr))
+        Self::new_basic("eq", 2, Some(cr))
     }
 
     pub fn not_equal() -> Self {
-        Self::new_basic("neq", 2.into(), None)
+        Self::new_basic("neq", 2, None)
     }
 
     pub fn add() -> Self {
@@ -218,7 +204,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("add", 2.into(), Some(cr))
+        Self::new_basic("add", 2, Some(cr))
     }
 
     pub fn sub() -> Self {
@@ -230,7 +216,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("sub", 2.into(), Some(cr))
+        Self::new_basic("sub", 2, Some(cr))
     }
 
     pub fn neg() -> Self {
@@ -242,7 +228,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("neg", 1.into(), Some(cr))
+        Self::new_basic("neg", 1, Some(cr))
     }
 
     pub fn mul() -> Self {
@@ -254,7 +240,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("mul", 2.into(), Some(cr))
+        Self::new_basic("mul", 2, Some(cr))
     }
 
     pub fn div() -> Self {
@@ -266,7 +252,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("div", 2.into(), Some(cr))
+        Self::new_basic("div", 2, Some(cr))
     }
 
     pub fn modd() -> Self {
@@ -278,7 +264,7 @@ impl Operator {
             }
         }
 
-        Self::new_basic("mod", 2.into(), Some(cr))
+        Self::new_basic("mod", 2, Some(cr))
     }
 }
 
