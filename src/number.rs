@@ -1,14 +1,10 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{self, Display, Formatter},
     hash::{Hash, Hasher},
     ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
-    time::Instant,
 };
 
 use derive_more::*;
-use itertools::Itertools;
-use maplit::hashmap;
 
 #[derive(Clone, Copy, PartialOrd, Neg, Add, AddAssign, Sub, SubAssign, Sum)]
 pub struct Number(f64);

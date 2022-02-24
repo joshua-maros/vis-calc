@@ -1,16 +1,11 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fmt::{self, Debug, Display, Formatter},
-    hash::{Hash, Hasher},
-    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
-    time::Instant,
+    collections::HashMap,
+    fmt::Debug,
+    hash::Hasher,
+    ops::{Div, Mul},
 };
 
-use derive_more::*;
-use itertools::Itertools;
-use maplit::hashmap;
-
-use crate::{expression::Expression, number::Number, operator::Operator};
+use crate::{expression::Expression, operator::Operator};
 
 mod expression;
 mod matchh;
@@ -58,13 +53,13 @@ impl Environment {
 }
 
 fn main() {
-    let mut env = Environment::new();
+    let env = Environment::new();
     println!("{:#?}", env);
     println!("Algebra engine initialized!");
 
     // let to_rewrite = expression!((and(and(true)(false))(true)));
     // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
-    let to_rewrite = make_expr!((mul (mul (add x y) (add x y)) (add x y)));
+    let _to_rewrite = make_expr!((mul (mul (add x y) (add x y)) (add x y)));
     // println!("{}", to_rewrite.flatten(&mut env));
     // let to_rewrite = expression!((add (add a a) (add a (mul a 2))));
     // env.simplify(to_rewrite, 4);

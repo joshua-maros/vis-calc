@@ -1,14 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
-    hash::{Hash, Hasher},
-    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
-    time::Instant,
+    hash::Hash,
 };
-
-use derive_more::*;
-use itertools::Itertools;
-use maplit::hashmap;
 
 use crate::number::Number;
 

@@ -81,12 +81,8 @@ impl Expression {
         }
     }
 
-    fn find_all_matches_in(
-        &self,
-        specific_case: &Self,
-    ) -> Vec<(Substitutions, ExpressionPath)> {
-        let result = if let MatchResult::Match(subs) = self.matches_specific_case(specific_case)
-        {
+    fn find_all_matches_in(&self, specific_case: &Self) -> Vec<(Substitutions, ExpressionPath)> {
+        let result = if let MatchResult::Match(subs) = self.matches_specific_case(specific_case) {
             Some((subs, vec![]))
         } else {
             None

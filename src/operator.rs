@@ -1,16 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fmt::{self, Debug, Display, Formatter},
-    hash::{Hash, Hasher},
-    ops::{Div, DivAssign, Mul, MulAssign, Rem, RemAssign},
-    time::Instant,
+    fmt::{self, Debug, Formatter},
+    hash::Hasher,
 };
-
-use derive_more::*;
-use itertools::Itertools;
-use maplit::hashmap;
-
-use crate::{expression::Expression, number::Number};
 
 pub struct Operator {
     pub name: String,
