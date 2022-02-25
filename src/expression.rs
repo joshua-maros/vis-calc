@@ -48,7 +48,7 @@ impl Display for Expression {
 }
 
 impl Expression {
-    fn as_number(&self) -> Option<&Number> {
+    pub fn as_number(&self) -> Option<&Number> {
         if let Self::Number(v) = self {
             Some(v)
         } else {

@@ -59,7 +59,7 @@ impl MatchResult {
 type ExpressionPath = Vec<usize>;
 
 impl Expression {
-    fn matches_specific_case(&self, specific_case: &Self) -> MatchResult {
+    pub fn matches_specific_case(&self, specific_case: &Self) -> MatchResult {
         match (self, specific_case) {
             (Expression::Number(l), Expression::Number(r)) => MatchResult::match_if(l == r),
             (Expression::Operator(lname, largs), Expression::Operator(rname, rargs)) => {
@@ -105,7 +105,7 @@ impl Expression {
         }
     }
 
-    fn apply_substitutions(&mut self, subs: &Substitutions) {
+    pub fn apply_substitutions(&mut self, subs: &Substitutions) {
         match self {
             Expression::Operator(_, args) => {
                 for arg in args {
