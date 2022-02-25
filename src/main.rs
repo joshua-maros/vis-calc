@@ -1,50 +1,23 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hasher,
-    ops::{Div, Mul},
-    time::Instant,
-};
+use std::{fmt::Debug, time::Instant};
 
-use itertools::Itertools;
 use matchh::MatchResult;
 
-use crate::{expression::Expression, operator::Operator};
+use crate::expression::Expression;
 
 mod expression;
 mod matchh;
 mod number;
-mod operator;
 
 #[derive(Debug)]
 struct Environment {
-    pub operators: HashMap<String, Operator>,
     pub simplifiers: Vec<Box<dyn Simplifier>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         let mut this = Environment {
-            operators: HashMap::new(),
             simplifiers: Vec::new(),
         };
-
-        this.add_operator(Operator::truee());
-        this.add_operator(Operator::falsee());
-        this.add_operator(Operator::and());
-        this.add_operator(Operator::or());
-        this.add_operator(Operator::not());
-        this.add_operator(Operator::implies());
-        this.add_operator(Operator::biconditional());
-        this.add_operator(Operator::equal());
-        this.add_operator(Operator::not_equal());
-        this.add_operator(Operator::add());
-        this.add_operator(Operator::sub());
-        this.add_operator(Operator::neg());
-        this.add_operator(Operator::mul());
-        this.add_operator(Operator::div());
-        this.add_operator(Operator::modd());
-        this.add_operator(Operator::pow());
 
         this.add_simplifier(SAddIdentical);
         this.add_simplifier(SAddFactorToMulFactor);
@@ -61,14 +34,6 @@ impl Environment {
         this.add_simplifier(ScPow);
 
         this
-    }
-
-    pub fn add_operator(&mut self, op: Operator) {
-        self.operators.insert(op.name.clone(), op);
-    }
-
-    pub fn get_operator(&self, name: &str) -> &Operator {
-        self.operators.get(name).unwrap()
     }
 
     pub fn add_simplifier(&mut self, simp: impl Simplifier + 'static) {
