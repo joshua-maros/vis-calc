@@ -42,12 +42,12 @@ impl Environment {
         // this.add_simplifier(SdMulRule);
         // this.add_simplifier(SdSubRule);
 
-        // this.add_simplifier(ScAdd);
-        // this.add_simplifier(ScSub);
-        // this.add_simplifier(ScNeg);
-        // this.add_simplifier(ScMul);
-        // this.add_simplifier(ScDiv);
-        // this.add_simplifier(ScPow);
+        this.add_simplifier(ScAdd);
+        this.add_simplifier(ScSub);
+        this.add_simplifier(ScNeg);
+        this.add_simplifier(ScMul);
+        this.add_simplifier(ScDiv);
+        this.add_simplifier(ScPow);
 
         this
     }
@@ -212,6 +212,32 @@ fn eliminate_common_factors(args: &[Expression]) -> Option<Expression> {
     }
 }
 
+fn aggressively_eliminate_common_factors(
+    args: &[Expression],
+) -> Option<(Expression, Vec<Expression>)> {
+    if let Some(replacement) = eliminate_common_factors(args) {
+        Some((replacement, vec![]))
+    } else if args.len() > 2 {
+        for index in 0..args.len() {
+            let fewer_args = args
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| *idx != index)
+                .map(|(_, item)| item)
+                .cloned()
+                .collect_vec();
+            if let Some((replacement, mut sum)) = aggressively_eliminate_common_factors(&fewer_args)
+            {
+                sum.push(args[index].clone());
+                return Some((replacement, sum));
+            }
+        }
+        None
+    } else {
+        None
+    }
+}
+
 impl Simplifier for SFoldAddition {
     fn apply(&self, to: &mut Expression) -> bool {
         if let Expression::Operator(name, args) = to {
@@ -228,8 +254,14 @@ impl Simplifier for SFoldAddition {
                     args.push(arg);
                 }
             }
-            if let Some(replacement) = eliminate_common_factors(&args) {
-                *to = replacement;
+            if let Some((replacement, sum)) = aggressively_eliminate_common_factors(&args) {
+                if sum.len() == 0 {
+                    *to = replacement;
+                } else {
+                    let mut args = sum;
+                    args.push(replacement);
+                    *to = Expression::Operator(format!("add"), args);
+                }
                 changed = true;
             }
             changed
@@ -374,11 +406,40 @@ macro_rules! computation_simplifier {
     };
 }
 
-computation_simplifier!(ScAdd, "add", args, args[0] + args[1]);
-computation_simplifier!(ScSub, "sub", args, args[0] - args[1]);
+macro_rules! vararg_computation_simplifier {
+    ($Name:ident, $op:literal, $a:ident, $b:ident, $result:expr) => {
+        #[derive(Debug)]
+        struct $Name;
+
+        impl Simplifier for $Name {
+            fn apply(&self, to: &mut Expression) -> bool {
+                if let Expression::Operator(name, args) = to {
+                    if name == $op {
+                        if let Some(args) = args
+                            .iter()
+                            .map(|x| x.as_number().copied())
+                            .collect::<Option<Vec<_>>>()
+                        {
+                            let mut $a = args[0];
+                            for &$b in &args[1..] {
+                                $a = $result;
+                            }
+                            *to = Expression::Number($a);
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    };
+}
+
+vararg_computation_simplifier!(ScAdd, "add", a, b, a + b);
+vararg_computation_simplifier!(ScSub, "sub", a, b, a - b);
 computation_simplifier!(ScNeg, "neg", args, -args[0]);
-computation_simplifier!(ScMul, "mul", args, args[0] * args[1]);
-computation_simplifier!(ScDiv, "div", args, args[0] / args[1]);
+vararg_computation_simplifier!(ScMul, "mul", a, b, a * b);
+vararg_computation_simplifier!(ScDiv, "div", a, b, a / b);
 computation_simplifier!(ScPow, "pow", args, args[0].powf(args[1]));
 
 fn main() {
