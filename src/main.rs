@@ -202,6 +202,8 @@ fn eliminate_common_factors(args: &[Expression]) -> Option<Expression> {
             .map(|addend| {
                 if addend.len() == 0 {
                     Expression::Number(1.into())
+                } else if addend.len() == 1 {
+                    addend.into_iter().next().unwrap()
                 } else {
                     Expression::Operator(format!("mul"), addend)
                 }
@@ -215,27 +217,27 @@ fn eliminate_common_factors(args: &[Expression]) -> Option<Expression> {
 fn aggressively_eliminate_common_factors(
     args: &[Expression],
 ) -> Option<(Expression, Vec<Expression>)> {
-    if let Some(replacement) = eliminate_common_factors(args) {
-        Some((replacement, vec![]))
-    } else if args.len() > 2 {
-        for index in 0..args.len() {
-            let fewer_args = args
-                .iter()
-                .enumerate()
-                .filter(|(idx, _)| *idx != index)
-                .map(|(_, item)| item)
-                .cloned()
-                .collect_vec();
-            if let Some((replacement, mut sum)) = aggressively_eliminate_common_factors(&fewer_args)
-            {
-                sum.push(args[index].clone());
-                return Some((replacement, sum));
+    type Candidate = (Vec<Expression>, Vec<Expression>);
+    let mut current_candidates: Vec<Candidate> = vec![(Vec::from(args), vec![])];
+    let mut next_candidates: Vec<Candidate> = vec![];
+    while current_candidates.len() > 0 {
+        for candidate in current_candidates {
+            if let Some(replacement) = eliminate_common_factors(&candidate.0) {
+                return Some((replacement, candidate.1));
+            }
+            if candidate.0.len() > 2 {
+                for omit_index in 0..candidate.0.len() {
+                    let mut omitted_prod = candidate.0.clone();
+                    let mut new_sum = candidate.1.clone();
+                    new_sum.push(omitted_prod.remove(omit_index));
+                    next_candidates.push((omitted_prod, new_sum));
+                }
             }
         }
-        None
-    } else {
-        None
+        current_candidates = next_candidates;
+        next_candidates = Vec::new();
     }
+    None
 }
 
 impl Simplifier for SFoldAddition {
@@ -406,7 +408,12 @@ macro_rules! computation_simplifier {
     };
 }
 
-macro_rules! vararg_computation_simplifier {
+// Here "movable" means that for all a, b, c, (a * b) * c = (a * c) * b.
+// If the operation has a left identity, it implies communativity and
+// associativity. But - is an operator without either of those but still follows
+// the above property (which is allowed because it has no left identity.)
+// https://math.stackexchange.com/questions/455960/when-i-state-a-cdot-b-cdot-c-a-cdot-c-cdot-b-what-properties-am-i-u
+macro_rules! movable_vararg_computation_simplifier {
     ($Name:ident, $op:literal, $a:ident, $b:ident, $result:expr) => {
         #[derive(Debug)]
         struct $Name;
@@ -415,16 +422,26 @@ macro_rules! vararg_computation_simplifier {
             fn apply(&self, to: &mut Expression) -> bool {
                 if let Expression::Operator(name, args) = to {
                     if name == $op {
-                        if let Some(args) = args
+                        let numeric_args = args
                             .iter()
-                            .map(|x| x.as_number().copied())
-                            .collect::<Option<Vec<_>>>()
-                        {
-                            let mut $a = args[0];
-                            for &$b in &args[1..] {
+                            .filter_map(|x| x.as_number().copied())
+                            .collect_vec();
+                        if numeric_args.len() > 1 {
+                            let mut $a = numeric_args[0];
+                            for &$b in &numeric_args[1..] {
                                 $a = $result;
                             }
-                            *to = Expression::Number($a);
+                            let mut new_args = args
+                                .iter()
+                                .cloned()
+                                .filter(|x| !matches!(x, Expression::Number(..)))
+                                .collect_vec();
+                            if new_args.len() == 0 {
+                                *to = Expression::Number($a);
+                            } else {
+                                new_args.push(Expression::Number($a));
+                                *args = new_args;
+                            }
                             return true;
                         }
                     }
@@ -435,11 +452,11 @@ macro_rules! vararg_computation_simplifier {
     };
 }
 
-vararg_computation_simplifier!(ScAdd, "add", a, b, a + b);
-vararg_computation_simplifier!(ScSub, "sub", a, b, a - b);
+movable_vararg_computation_simplifier!(ScAdd, "add", a, b, a + b);
+computation_simplifier!(ScSub, "sub", args, args[0] - args[1]);
 computation_simplifier!(ScNeg, "neg", args, -args[0]);
-vararg_computation_simplifier!(ScMul, "mul", a, b, a * b);
-vararg_computation_simplifier!(ScDiv, "div", a, b, a / b);
+movable_vararg_computation_simplifier!(ScMul, "mul", a, b, a * b);
+computation_simplifier!(ScDiv, "div", args, args[0] / args[1]);
 computation_simplifier!(ScPow, "pow", args, args[0].powf(args[1]));
 
 fn main() {
@@ -450,7 +467,8 @@ fn main() {
     // let mut to_rewrite = make_expr!((add (add a a) (add a (mul a 2))));
     // let mut to_rewrite = make_expr!((mul (mul (add x y) (add x y)) (add x y)));
     // let mut to_rewrite = make_expr!((dif t (pow t 2)));
-    let mut to_rewrite = make_expr!((add a a a b));
+    let mut to_rewrite = make_expr!((add a (mul a b)));
+    // let mut to_rewrite = make_expr!((sub 4 a 5));
     env.simplify(&mut to_rewrite);
     println!("{:?}", to_rewrite);
 }
