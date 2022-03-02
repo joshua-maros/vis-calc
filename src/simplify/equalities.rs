@@ -1,10 +1,6 @@
-use std::{collections::HashSet, fmt::Debug, time::Instant};
+use std::fmt::Debug;
 
-use itertools::Itertools;
-
-use crate::{
-    expression::Expression, make_expr, matchh::MatchResult, number::Number, simplify::Simplifier,
-};
+use crate::{expression::Expression, make_expr, matchh::MatchResult, simplify::Simplifier};
 
 #[macro_export]
 macro_rules! equality_simplifier {

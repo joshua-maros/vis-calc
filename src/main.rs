@@ -16,7 +16,7 @@ struct Environment {
 
 impl Environment {
     pub fn new() -> Self {
-        let mut this = Environment {
+        let this = Environment {
             passes: [
                 simplify::prepass(),
                 simplify::intermediates(),

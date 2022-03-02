@@ -1,10 +1,8 @@
-use std::{collections::HashSet, fmt::Debug, time::Instant};
-
-use itertools::Itertools;
+use std::fmt::Debug;
 
 use crate::{
     equality_simplifier, expression::Expression, make_expr, matchh::MatchResult,
-    number::Number, simplify::Simplifier,
+    simplify::Simplifier,
 };
 
 equality_simplifier!(

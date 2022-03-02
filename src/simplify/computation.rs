@@ -1,8 +1,8 @@
-use std::{collections::HashSet, fmt::Debug, time::Instant};
+use std::fmt::Debug;
 
 use itertools::Itertools;
 
-use crate::{expression::Expression, matchh::MatchResult, number::Number, simplify::Simplifier};
+use crate::{expression::Expression, simplify::Simplifier};
 
 macro_rules! computation_simplifier {
     ($Name:ident, $op:literal, $args:ident, $result:expr) => {

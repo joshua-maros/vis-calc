@@ -5,11 +5,9 @@ mod fold_addition;
 pub mod fold_multiplication;
 mod normalize;
 
-use std::{collections::HashSet, fmt::Debug, time::Instant};
+use std::fmt::Debug;
 
-use itertools::Itertools;
-
-use crate::{expression::Expression, matchh::MatchResult, number::Number};
+use crate::expression::Expression;
 
 pub trait Simplifier: Debug {
     fn apply(&self, to: &mut Expression);

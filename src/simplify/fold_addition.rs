@@ -1,10 +1,8 @@
-use std::{collections::HashSet, fmt::Debug, time::Instant};
+use std::{collections::HashSet, fmt::Debug};
 
 use itertools::Itertools;
 
-use crate::{
-    expression::Expression, make_expr, matchh::MatchResult, number::Number, simplify::Simplifier,
-};
+use crate::{expression::Expression, simplify::Simplifier};
 
 #[derive(Debug)]
 pub struct SFoldAddition;
