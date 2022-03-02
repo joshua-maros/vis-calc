@@ -3,11 +3,8 @@ mod matchh;
 mod number;
 mod simplify;
 
-use std::{collections::HashSet, fmt::Debug, time::Instant};
+use std::{fmt::Debug, time::Instant};
 
-use itertools::Itertools;
-use matchh::MatchResult;
-use number::Number;
 use simplify::Simplifier;
 
 use crate::expression::Expression;
@@ -35,19 +32,19 @@ impl Environment {
     }
 
     fn simplify_once(&self, expr: &mut Expression) -> bool {
-        let mut simplified = false;
+        let start = expr.clone();
         match expr {
             Expression::Operator(_, args) => {
                 for arg in args {
-                    simplified |= self.simplify_once(arg);
+                    self.simplify_once(arg);
                 }
             }
             _ => (),
         }
         for simplifier in &self.simplifiers {
-            simplified |= simplifier.apply(expr);
+            simplifier.apply(expr);
         }
-        simplified
+        start != *expr
     }
 }
 
@@ -60,7 +57,8 @@ fn main() {
     // let mut to_rewrite = make_expr!((mul (mul (add x y) (add x y)) (add x y)));
     // let mut to_rewrite = make_expr!((dif t (pow t 2)));
     let mut to_rewrite = make_expr!((add a (mul a b)));
-    // let mut to_rewrite = make_expr!((sub 4 a 5));
+    // let mut to_rewrite = make_expr!((pow a 1));
+    // let mut to_rewrite = make_expr!((mul 1 (pow a 1)));
     env.simplify(&mut to_rewrite);
     println!("{:?}", to_rewrite);
 }

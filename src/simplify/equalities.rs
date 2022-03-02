@@ -3,8 +3,7 @@ use std::{collections::HashSet, fmt::Debug, time::Instant};
 use itertools::Itertools;
 
 use crate::{
-    expression::Expression, make_expr, matchh::MatchResult, number::Number,
-    simplify::Simplifier,
+    expression::Expression, make_expr, matchh::MatchResult, number::Number, simplify::Simplifier,
 };
 
 #[macro_export]
@@ -14,15 +13,18 @@ macro_rules! equality_simplifier {
         pub struct $Name;
 
         impl Simplifier for $Name {
-            fn apply(&self, to: &mut Expression) -> bool {
+            fn apply(&self, to: &mut Expression) {
+                loop {
                 $(
                     if let MatchResult::Match(subs) = make_expr!($sources).matches_specific_case(&to) {
+                        println!("{:?}", make_expr!($sources));
                         *to = make_expr!($replacement);
                         to.apply_substitutions(&subs);
-                        return true;
+                        continue;
                     }
                 )*
-                false
+                    break;
+                }
             }
         }
     }
@@ -43,20 +45,13 @@ equality_simplifier!(
 );
 
 equality_simplifier!(
-    SMulIdentical =
-    (mul x x)
-    => (pow x 2)
+    SPowZero =
+    (pow x 0)
+    => 1
 );
 
 equality_simplifier!(
-    SMulFactorWithPowFactor =
-    (mul x (pow x y)),
-    (mul (pow x y) x)
-    => (pow x (add y 1))
-);
-
-equality_simplifier!(
-    SMulXyXz=
-    (mul (pow x y) (pow x z))
-    => (mul x (add y z))
+    SPowIdentity =
+    (pow x 1)
+    => x
 );

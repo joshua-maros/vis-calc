@@ -17,14 +17,13 @@ equality_simplifier!(
 pub struct SdConstant;
 
 impl Simplifier for SdConstant {
-    fn apply(&self, to: &mut Expression) -> bool {
+    fn apply(&self, to: &mut Expression) {
         if let MatchResult::Match(subs) = make_expr!((dif t a)).matches_specific_case(&to) {
             if let Expression::Number(..) = subs.get("a").unwrap() {
                 *to = make_expr!(0);
-                return true;
+                return;
             }
         }
-        false
     }
 }
 

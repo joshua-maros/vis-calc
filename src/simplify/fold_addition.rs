@@ -3,8 +3,7 @@ use std::{collections::HashSet, fmt::Debug, time::Instant};
 use itertools::Itertools;
 
 use crate::{
-    expression::Expression, make_expr, matchh::MatchResult, number::Number,
-    simplify::Simplifier,
+    expression::Expression, make_expr, matchh::MatchResult, number::Number, simplify::Simplifier,
 };
 
 #[derive(Debug)]
@@ -89,18 +88,15 @@ fn aggressively_eliminate_common_factors(
 }
 
 impl Simplifier for SFoldAddition {
-    fn apply(&self, to: &mut Expression) -> bool {
+    fn apply(&self, to: &mut Expression) {
         if let Expression::Operator(name, args) = to {
             if name != "add" {
-                return false;
+                return;
             }
             let old_args = std::mem::take(args);
-            let mut changed = false;
             // Remove zeros.
             for arg in old_args {
-                if arg == Expression::Number(0.into()) {
-                    changed = true;
-                } else {
+                if arg != Expression::Number(0.into()) {
                     args.push(arg);
                 }
             }
@@ -112,11 +108,7 @@ impl Simplifier for SFoldAddition {
                     args.push(replacement);
                     *to = Expression::Operator(format!("add"), args);
                 }
-                changed = true;
             }
-            changed
-        } else {
-            false
         }
     }
 }
