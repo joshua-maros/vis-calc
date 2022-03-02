@@ -5,23 +5,26 @@ mod simplify;
 
 use std::{fmt::Debug, time::Instant};
 
-use simplify::Simplifier;
+use simplify::{Simplifier, Simplifiers};
 
 use crate::expression::Expression;
 
 #[derive(Debug)]
 struct Environment {
-    pub simplifiers: Vec<Box<dyn Simplifier>>,
+    passes: [Simplifiers; 5],
 }
 
 impl Environment {
     pub fn new() -> Self {
         let mut this = Environment {
-            simplifiers: Vec::new(),
+            passes: [
+                simplify::prepass(),
+                simplify::intermediates(),
+                simplify::expand(),
+                simplify::intermediates(),
+                simplify::collapse(),
+            ],
         };
-        for simp in simplify::simplifiers() {
-            this.simplifiers.push(simp);
-        }
         this
     }
 
@@ -33,6 +36,13 @@ impl Environment {
 
     fn simplify_once(&self, expr: &mut Expression) -> bool {
         let start = expr.clone();
+        for pass in &self.passes {
+            self.simplify_pass(expr, pass);
+        }
+        start != *expr
+    }
+
+    fn simplify_pass(&self, expr: &mut Expression, simps: &[Box<dyn Simplifier>]) {
         match expr {
             Expression::Operator(_, args) => {
                 for arg in args {
@@ -41,10 +51,9 @@ impl Environment {
             }
             _ => (),
         }
-        for simplifier in &self.simplifiers {
+        for simplifier in simps {
             simplifier.apply(expr);
         }
-        start != *expr
     }
 }
 
