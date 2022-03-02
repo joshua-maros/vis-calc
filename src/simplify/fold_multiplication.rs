@@ -56,6 +56,11 @@ impl Simplifier for SFoldMultiplication {
                     args.push(Expression::Operator(format!("pow"), vec![base, exponent]));
                 }
             }
+
+            if args.len() == 1 {
+                let (arg,) = std::mem::take(args).into_iter().collect_tuple().unwrap();
+                *to = arg;
+            }
         }
     }
 }

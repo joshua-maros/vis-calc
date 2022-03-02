@@ -65,9 +65,9 @@ fn main() {
     // let mut to_rewrite = make_expr!((add (add a a) (add a (mul a 2))));
     // let mut to_rewrite = make_expr!((mul (mul (add x y) (add x y)) (add x y)));
     // let mut to_rewrite = make_expr!((dif t (pow t 2)));
-    let mut to_rewrite = make_expr!((add a (mul a b)));
+    // let mut to_rewrite = make_expr!((add a (mul a b)));
     // let mut to_rewrite = make_expr!((pow a 1));
-    // let mut to_rewrite = make_expr!((mul 1 (pow a 1)));
+    let mut to_rewrite = make_expr!((add (mul (add x 1) (add x 1)) (neg 1)));
     env.simplify(&mut to_rewrite);
     println!("{:?}", to_rewrite);
 }
