@@ -1,18 +1,21 @@
-mod calculus;
-mod computation;
-mod equalities;
-mod fold_addition;
-pub mod fold_multiplication;
-mod normalize;
+mod collapse;
+mod expand;
+mod intermediates;
+mod prepass;
 
 use std::fmt::Debug;
 
+pub use self::{
+    collapse::simplifiers as collapse, expand::simplifiers as expand,
+    intermediates::simplifiers as intermediates, prepass::simplifiers as prepass,
+};
 use crate::expression::Expression;
 
 pub trait Simplifier: Debug {
     fn apply(&self, to: &mut Expression);
 }
 
+#[macro_export]
 macro_rules! simplifiers {
     ($($e:expr,)*) => {
         vec![$(Box::new($e)),*]
@@ -20,41 +23,3 @@ macro_rules! simplifiers {
 }
 
 pub type Simplifiers = Vec<Box<dyn Simplifier>>;
-
-pub fn prepass() -> Simplifiers {
-    simplifiers![normalize::SNormalize,]
-}
-
-pub fn expand() -> Simplifiers {
-    simplifiers![]
-}
-
-pub fn intermediates() -> Vec<Box<dyn Simplifier>> {
-    simplifiers![
-        computation::ScAdd,
-        computation::ScDiv,
-        computation::ScMul,
-        computation::ScNeg,
-        computation::ScPow,
-        computation::ScSub,
-        //
-        equalities::SMulIdentity,
-        equalities::SMulZero,
-        equalities::SPowIdentity,
-        equalities::SPowZero,
-        //
-        calculus::SdAddRule,
-        calculus::SdConstant,
-        calculus::SdDivRule,
-        calculus::SdIdentical,
-        calculus::SdMulRule,
-        calculus::SdSubRule,
-    ]
-}
-
-pub fn collapse() -> Simplifiers {
-    simplifiers![
-        fold_multiplication::SFoldMultiplication,
-        fold_addition::SFoldAddition,
-    ]
-}
