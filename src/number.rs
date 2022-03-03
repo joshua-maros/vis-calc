@@ -13,6 +13,15 @@ impl Number {
     pub fn powf(self, other: Self) -> Self {
         Self(self.0.powf(other.0))
     }
+
+    pub fn as_int(&self) -> Option<i32> {
+        let as_int = self.0 as i32;
+        if as_int as f64 == self.0 {
+            Some(as_int)
+        } else {
+            None
+        }
+    }
 }
 
 impl Mul for Number {

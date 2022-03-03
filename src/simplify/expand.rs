@@ -58,6 +58,22 @@ mod polynomial_expansion {
                     *to = find_expansion(&args[..]);
                     SNormalize.apply(to);
                 }
+                Expression::Operator(name, args) if name == "pow" => {
+                    if let Expression::Number(num) = args[1] {
+                        if let Some(int) = num.as_int() {
+                            if int < 1 || int > 16 {
+                                return;
+                            }
+                            let factor = &args[0];
+                            if find_addends(factor).len() == 1 {
+                                return;
+                            }
+                            let factors = (0..int).map(|_| factor).collect_vec();
+                            *to = find_expansion(&factors);
+                            SNormalize.apply(to);
+                        }
+                    }
+                }
                 _ => (),
             }
         }
