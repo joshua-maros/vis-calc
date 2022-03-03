@@ -6,8 +6,10 @@ mod prepass;
 use std::fmt::Debug;
 
 pub use self::{
-    collapse::simplifiers as collapse, expand::simplifiers as expand,
-    intermediates::simplifiers as intermediates, prepass::simplifiers as prepass,
+    collapse::simplifiers as collapse,
+    expand::simplifiers as expand,
+    intermediates::simplifiers as intermediates,
+    prepass::{simplifiers as prepass, SNormalize},
 };
 use crate::expression::Expression;
 

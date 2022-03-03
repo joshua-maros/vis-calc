@@ -1,5 +1,7 @@
 mod normalize;
 
+pub use normalize::SNormalize;
+
 use super::Simplifiers;
 use crate::simplifiers;
 

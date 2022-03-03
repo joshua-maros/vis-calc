@@ -13,7 +13,6 @@ macro_rules! equality_simplifier {
                 loop {
                 $(
                     if let MatchResult::Match(subs) = make_expr!($sources).matches_specific_case(&to) {
-                        println!("{:?}", make_expr!($sources));
                         *to = make_expr!($replacement);
                         to.apply_substitutions(&subs);
                         continue;
